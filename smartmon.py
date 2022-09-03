@@ -105,6 +105,15 @@ def metric_key(metric, prefix=""):
     return "{prefix}{metric.name}".format(prefix=prefix, metric=metric)
 
 
+def metric_format_meta(metric, prefix=""):
+    key = metric_key(metric, prefix)
+
+    return [
+        "# HELP {key} SMART metric {metric.name}".format(key=key, metric=metric),
+        "# TYPE {key} gauge".format(key=key),
+    ]
+
+
 def metric_format(metric, prefix=""):
     key = metric_key(metric, prefix)
     labels = ",".join(
@@ -113,17 +122,17 @@ def metric_format(metric, prefix=""):
     )
     value = decimal.Decimal(metric.value)
 
-    return "{key}{{{labels}}} {value}".format(key=key, labels=labels, value=value)
+    return ["{key}{{{labels}}} {value}".format(key=key, labels=labels, value=value)]
 
 
 def metric_print_meta(metric, prefix=""):
-    key = metric_key(metric, prefix)
-    print("# HELP {key} SMART metric {metric.name}".format(key=key, metric=metric))
-    print("# TYPE {key} gauge".format(key=key))
+    for line in metric_format_meta(metric, prefix):
+        print(line)
 
 
 def metric_print(metric, prefix=""):
-    print(metric_format(metric, prefix))
+    for line in metric_format(metric, prefix):
+        print(line)
 
 
 def smart_ctl(*args, check=True):
@@ -366,6 +375,27 @@ def collect_disks_smart_metrics(wakeup_disks):
             yield from collect_ata_metrics(device)
 
             yield from collect_ata_error_count(device)
+
+
+def get_metrics(wakeup_disks=False):
+    ret = []
+    version_metric = Metric("smartctl_version", {"version": smart_ctl_version()}, True)
+    ret += metric_format_meta(version_metric, "smartmon_")
+    ret += metric_format(version_metric, "smartmon_")
+
+    metrics = list(collect_disks_smart_metrics(wakeup_disks))
+    metrics.sort(key=lambda i: i.name)
+
+    previous_name = None
+    for m in metrics:
+        if m.name != previous_name:
+            ret += metric_format_meta(m, "smartmon_")
+
+            previous_name = m.name
+
+        ret += metric_format(m, "smartmon_")
+
+    return ret
 
 
 def main():
