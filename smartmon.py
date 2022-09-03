@@ -151,6 +151,7 @@ def find_devices():
     parser.add_argument("-d", "--device", dest="type")
 
     devices = smart_ctl("--scan-open")
+    devices += smart_ctl("--scan-open", "-d", "sat")
 
     for device in devices.split("\n"):
         device = device.strip()
